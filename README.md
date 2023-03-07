@@ -6,8 +6,9 @@ A telegram bot for saving messages to self-hosted [memos](https://github.com/use
 
 1. Clone repo;
 1. Run `npm install && npm run deploy` to deploy;
-1. Tell bot father you want to create a bot;
-1. Go to the cloudflare worker dashboard, add *encrypted* variables
+1. Create your bot via https://t.me/BotFather;
+1. Find your telegram id via https://t.me/userinfobot;
+1. Go to the cloudflare worker dashboard, add **encrypted** variables:
     - `TG_BOT_TOKEN`: your bot token;
     - `TG_BOT_WEBHOOK_PATH`: optional path, can use as secret;
     - `MEMOS_OPENAPI_$(your telegram id)`: your memos openapi url;
