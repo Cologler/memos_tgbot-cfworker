@@ -1,25 +1,73 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `wrangler dev src/index.ts` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `wrangler publish src/index.ts --name my-worker` to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
 
 export interface Env {
-	// Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-	// MY_KV_NAMESPACE: KVNamespace;
-	//
-	// Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-	// MY_DURABLE_OBJECT: DurableObjectNamespace;
-	//
-	// Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-	// MY_BUCKET: R2Bucket;
-	//
-	// Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-	// MY_SERVICE: Fetcher;
+	// secret
+    readonly TG_BOT_TOKEN: string;
+
+    // env
+    readonly TG_BOT_WEBHOOK_PATH: string;
+}
+
+function postJson(url: string, obj: object) {
+    return fetch(url, {
+        method: 'POST',
+        body: JSON.stringify(obj),
+        headers: {
+            'content-type': 'application/json',
+        }
+    });
+}
+
+class TgBotClient {
+    constructor(public botToken: string) {
+    }
+
+    get botBaseUrl() {
+        return `https://api.telegram.org/bot${this.botToken}`;
+    }
+
+    getMethodUrl(method: string) {
+        return this.botBaseUrl + '/' + method;
+    }
+
+    async sendMessage(chatId: number, text: string) {
+        console.log(`sendMessage: ${chatId} ${text}`);
+
+        await postJson(this.getMethodUrl('sendMessage'), {
+            chat_id: chatId,
+            text,
+        });
+    }
+
+    async replyMessage(chatId: number, replyTo: number, text: string) {
+        console.log(`replyMessage: ${chatId} ${text}`);
+
+        await postJson(this.getMethodUrl('sendMessage'), {
+            chat_id: chatId,
+            text,
+            reply_to_message_id: replyTo
+        });
+    }
+}
+
+async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
+	// for update content, check: https://core.telegram.org/bots/api#update
+
+	const text: string | undefined = update.message?.text;
+	const chatId: number | undefined = update.message?.chat.id; // for reply to
+    const messageId: number = update.message?.message_id;
+
+	if (typeof text === 'string' && chatId && messageId) {
+        if (text === '/start') {
+			const replyContent = 'Hello World!'
+			await new TgBotClient(env.TG_BOT_TOKEN).sendMessage(chatId, replyContent);
+		}
+		else {
+			const replyContent = "Hello World!";
+			await new TgBotClient(env.TG_BOT_TOKEN).replyMessage(chatId, messageId, replyContent);
+		}
+	}
+
+	return new Response(); // telegram does not care this.
 }
 
 export default {
@@ -28,6 +76,20 @@ export default {
 		env: Env,
 		ctx: ExecutionContext
 	): Promise<Response> {
+
+		const url = new URL(request.url);
+
+        if (request.method === 'POST' && url.pathname === `/${env.TG_BOT_WEBHOOK_PATH}`) {
+			// request is sent by telegram
+
+            if (request.headers.get('content-type') !== 'application/json') {
+                console.error(`invalid content-type: ${request.headers.get('content-type')}`);
+            }
+            else {
+				return await handleTelegramUpdate(env, await request.json());
+            }
+        }
+
 		return new Response("Hello World!");
 	},
 };
