@@ -269,9 +269,12 @@ async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
                             content: caption || '',
                             resourceIdList: [res.id]
                         })
-                    } else if (sticker && !sticker.is_animated && !sticker.is_video) {
-                        const blob = await getTgFileAsBlob(sticker.file_id, sticker.file_size, 'image/*');
-                        const res = await memos.addBlob(blob, `tg-sticker-${sticker.file_unique_id}`);
+                    } else if (sticker && !sticker.is_animated) {
+                        // see: https://core.telegram.org/stickers
+                        const mimeType = sticker.is_video ? 'video/*' : 'image/*';
+                        const ext = sticker.is_video ? '.webm' : '.webp';
+                        const blob = await getTgFileAsBlob(sticker.file_id, sticker.file_size, mimeType);
+                        const res = await memos.addBlob(blob, `tg-sticker-${sticker.file_unique_id}${ext}`);
                         memo = await memos.addMemo({
                             content: caption || '',
                             resourceIdList: [res.id]

@@ -2,6 +2,17 @@
 
 A telegram bot for saving messages to self-hosted [memos](https://github.com/usememos/memos), and hosted on cloudflare worker.
 
+## Features
+
+Support message types:
+
+- Text
+- Photo
+- File
+- Image or video sticker
+
+*Telegram limit: bot can download files of up to 20MB in size.*
+
 ## Deploy
 
 1. Clone repo;
