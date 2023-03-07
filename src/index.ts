@@ -179,6 +179,12 @@ async function findMemosOpenApi(env: Env, tgUserId: number): Promise<string | nu
 class KnownError extends Error {
 }
 
+interface TgFileInfo {
+    file_id: string;
+    file_unique_id: string;
+    file_size: number;
+}
+
 async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
 	// for update content, check: https://core.telegram.org/bots/api#update
 
@@ -187,18 +193,15 @@ async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
     const userId: number | undefined = update.message?.from.id;
 
 	const text: string | undefined = update.message?.text;
-    const photos: {
-        file_id: string,
-        file_unique_id: string,
-        file_size: number
-    }[] | undefined = update.message?.photo;
-    const document: {
+    const photos: TgFileInfo[] | undefined = update.message?.photo;
+    const document: (TgFileInfo & {
         file_name: string,
-        mime_type: string,
-        file_id: string,
-        file_unique_id: string,
-        file_size: number
-    } | undefined = update.message?.document;
+        mime_type: string
+    }) | undefined = update.message?.document;
+    const sticker: (TgFileInfo & {
+        is_animated: boolean,
+        is_video: boolean
+    }) | undefined = update.message?.sticker;
     const caption: string | undefined = update.message?.caption;
 
     const tgBot = new TgBotClient(env.TG_BOT_TOKEN);
@@ -252,8 +255,8 @@ async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
                     if (text) {
                         memo = await memos.addMemo({ content: text });
                     } else if (photos) {
-                        const photo = photos[photos.length - 1];
-                        const blob = await getTgFileAsBlob(photo.file_id, photo.file_size, 'image/jpeg');
+                        const photo = photos[photos.length - 1]; // the last one is bigest
+                        const blob = await getTgFileAsBlob(photo.file_id, photo.file_size, 'image/*');
                         const res = await memos.addBlob(blob, `tg-photo-${photo.file_unique_id}.jpg`);
                         memo = await memos.addMemo({
                             content: caption || '',
@@ -262,6 +265,13 @@ async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
                     } else if (document) {
                         const blob = await getTgFileAsBlob(document.file_id, document.file_size, document.mime_type);
                         const res = await memos.addBlob(blob, document.file_name);
+                        memo = await memos.addMemo({
+                            content: caption || '',
+                            resourceIdList: [res.id]
+                        })
+                    } else if (sticker && !sticker.is_animated && !sticker.is_video) {
+                        const blob = await getTgFileAsBlob(sticker.file_id, sticker.file_size, 'image/*');
+                        const res = await memos.addBlob(blob, `tg-sticker-${sticker.file_unique_id}`);
                         memo = await memos.addMemo({
                             content: caption || '',
                             resourceIdList: [res.id]
