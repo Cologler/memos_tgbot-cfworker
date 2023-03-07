@@ -1,5 +1,5 @@
 {
-  "name": "memos_tgbot",
+  "name": "send_to_memos_tgbot",
   "version": "0.0.0",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20230228.0",

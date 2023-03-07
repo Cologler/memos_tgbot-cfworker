@@ -1,4 +1,4 @@
-# memos-tgbot
+# send-to-memos-tgbot
 
 A telegram bot for saving messages to self-hosted [memos](https://github.com/usememos/memos), and hosted on cloudflare worker.
 
