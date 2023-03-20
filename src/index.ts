@@ -3,6 +3,10 @@ export interface Env {
 	// secret
     readonly TG_BOT_TOKEN: string;
     readonly TG_BOT_WEBHOOK_PATH: string;
+
+    // envs
+    readonly MEMO_SUFFIX?: string;
+    readonly MEMO_PREFIX?: string;
 }
 
 function postJson(url: string, obj: object) {
@@ -251,22 +255,28 @@ async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
                 }
 
                 try {
+                    const contentRows = [];
+                    contentRows.push(env.MEMO_PREFIX);
+                    contentRows.push(text || caption || '');
+                    contentRows.push(env.MEMO_SUFFIX);
+                    const content = contentRows.filter(x => x).join('\n');
+
                     let memo: Awaited<ReturnType<typeof memos.addMemo>>;
                     if (text) {
-                        memo = await memos.addMemo({ content: text });
+                        memo = await memos.addMemo({ content: content });
                     } else if (photos) {
                         const photo = photos[photos.length - 1]; // the last one is bigest
                         const blob = await getTgFileAsBlob(photo.file_id, photo.file_size, 'image/*');
                         const res = await memos.addBlob(blob, `tg-photo-${photo.file_unique_id}.jpg`);
                         memo = await memos.addMemo({
-                            content: caption || '',
+                            content: content,
                             resourceIdList: [res.id]
                         })
                     } else if (document) {
                         const blob = await getTgFileAsBlob(document.file_id, document.file_size, document.mime_type);
                         const res = await memos.addBlob(blob, document.file_name);
                         memo = await memos.addMemo({
-                            content: caption || '',
+                            content: content,
                             resourceIdList: [res.id]
                         })
                     } else if (sticker && !sticker.is_animated) {
@@ -276,7 +286,7 @@ async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
                         const blob = await getTgFileAsBlob(sticker.file_id, sticker.file_size, mimeType);
                         const res = await memos.addBlob(blob, `tg-sticker-${sticker.file_unique_id}${ext}`);
                         memo = await memos.addMemo({
-                            content: caption || '',
+                            content: content,
                             resourceIdList: [res.id]
                         })
                     } else {

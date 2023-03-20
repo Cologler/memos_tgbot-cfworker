@@ -3,3 +3,4 @@ main = "src/index.ts"
 compatibility_date = "2023-03-07"
 
 [vars]
+MEMO_SUFFIX = '#from-telegram'
