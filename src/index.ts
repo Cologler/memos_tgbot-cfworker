@@ -183,30 +183,51 @@ async function findMemosOpenApi(env: Env, tgUserId: number): Promise<string | nu
 class KnownError extends Error {
 }
 
-interface TgFileInfo {
+interface TelegramFileInfo {
     file_id: string;
     file_unique_id: string;
     file_size: number;
 }
 
-async function handleTelegramUpdate(env: Env, update: any): Promise<Response> {
+interface TelegramUpdate {
+    message?: {
+        from: {
+            id: number,
+        },
+
+        chat: {
+            id: number,
+        },
+
+        message_id: number,
+
+        text?: string,
+        /** caption for photo */
+        caption?: string,
+        photo?: TelegramFileInfo[],
+        document?: TelegramFileInfo & {
+            file_name: string,
+            mime_type: string
+        },
+        sticker?: TelegramFileInfo & {
+            is_animated: boolean,
+            is_video: boolean
+        },
+    }
+}
+
+async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<Response> {
 	// for update content, check: https://core.telegram.org/bots/api#update
 
-	const chatId: number | undefined = update.message?.chat.id; // for reply to
-    const messageId: number = update.message?.message_id;
-    const userId: number | undefined = update.message?.from.id;
+	const chatId = update.message?.chat.id; // for reply to
+    const messageId = update.message?.message_id;
+    const userId = update.message?.from.id;
 
-	const text: string | undefined = update.message?.text;
-    const photos: TgFileInfo[] | undefined = update.message?.photo;
-    const document: (TgFileInfo & {
-        file_name: string,
-        mime_type: string
-    }) | undefined = update.message?.document;
-    const sticker: (TgFileInfo & {
-        is_animated: boolean,
-        is_video: boolean
-    }) | undefined = update.message?.sticker;
-    const caption: string | undefined = update.message?.caption;
+	const text = update.message?.text;
+    const photos = update.message?.photo;
+    const document = update.message?.document;
+    const sticker = update.message?.sticker;
+    const caption = update.message?.caption;
 
     const tgBot = new TgBotClient(env.TG_BOT_TOKEN);
 
