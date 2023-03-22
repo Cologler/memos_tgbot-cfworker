@@ -1,39 +1,87 @@
-import { unstable_dev } from "wrangler";
-import type { UnstableDevWorker } from "wrangler";
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { MemosClient } from '.';
+import { convertTelegramUpdateContentToMarkdown } from '.';
 
-describe("Worker", () => {
-	let worker: UnstableDevWorker;
-
-	beforeAll(async () => {
-		worker = await unstable_dev("src/index.ts", {
-			experimental: { disableExperimentalWarning: true },
+describe('Content Convert', () => {
+	it('can convert plaintext', async () => {
+		const markdown = convertTelegramUpdateContentToMarkdown({
+			"message": {
+				"message_id": 0,
+				"from": {
+					"id": 0,
+				},
+				"chat": {
+					"id": 0,
+				},
+				"text": "sss"
+			}
 		});
+		expect(markdown).toStrictEqual('sss');
 	});
 
-	afterAll(async () => {
-		await worker.stop();
-	});
-
-	it("should return Hello World", async () => {
-		const resp = await worker.fetch();
-		if (resp) {
-			const text = await resp.text();
-			expect(text).toMatchInlineSnapshot(`"Hello World!"`);
-		}
-	});
-});
-
-describe('MemosClient', () => {
-	const date = new Date().toString();
-	const client = new MemosClient('http://127.0.0.1:5230/api/memo?openId=a5b14631-d824-4ee8-aa3a-e573fa59a4f5');
-
-	it("should be able create memos", async () => {
-		const resp = await client.addMemo({
-			content: `now is ${date}`
+	it('can convert text formated with url', async () => {
+		const markdown = convertTelegramUpdateContentToMarkdown({
+			"message": {
+				"message_id": 0,
+				"from": {
+					"id": 0,
+				},
+				"chat": {
+					"id": 0,
+				},
+				"text": "fsafafasfdsgdsgfdshfdhdfghfghgfhgfhgfhgfhgf",
+				"entities": [
+					{
+						"offset": 5,
+						"length": 8,
+						"type": "text_link",
+						"url": "https://001.example.com/"
+					},
+					{
+						"offset": 22,
+						"length": 7,
+						"type": "text_link",
+						"url": "https://002.example.com/"
+					},
+					{
+						"offset": 38,
+						"length": 3,
+						"type": "text_link",
+						"url": "https://003.example.com/"
+					}
+				]
+			}
 		});
-		expect(resp.id).toBeGreaterThan(0);
+		expect(markdown).toStrictEqual(
+			'fsafa' +
+			'[fasfdsgd](https://001.example.com/)' +
+			'sgfdshfdh' +
+			'[dfghfgh](https://002.example.com/)' +
+			'gfhgfhgfh' +
+			'[gfh](https://003.example.com/)' +
+			'gf');
+	});
+
+	it('can convert text formated with url', async () => {
+		const markdown = convertTelegramUpdateContentToMarkdown({
+			"message": {
+				"message_id": 0,
+				"from": {
+					"id": 0,
+				},
+				"chat": {
+					"id": 0,
+				},
+				"text": "dsgsdgsgsd",
+				"entities": [
+					{
+						"offset": 2,
+						"length": 3,
+						"type": "italic"
+					}
+				]
+			}
+		});
+		expect(markdown).toStrictEqual('ds*gsd*gsgsd');
 	});
 });

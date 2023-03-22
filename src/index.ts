@@ -202,6 +202,14 @@ interface TelegramUpdate {
         message_id: number,
 
         text?: string,
+        /** optional text format */
+        entities?: {
+            type: 'text_link' | 'bold' | 'italic' | 'underline' | 'strikethrough',
+            offset: number,
+            length: number,
+            url?: string
+        }[];
+
         /** caption for photo */
         caption?: string,
         photo?: TelegramFileInfo[],
@@ -216,6 +224,62 @@ interface TelegramUpdate {
     }
 }
 
+export function convertTelegramUpdateContentToMarkdown(update: TelegramUpdate): string {
+    const text = update.message?.text;
+    if (text) {
+        if (update.message?.entities) {
+            const formats = update.message.entities
+                .filter(x => x.length > 0) // can be 0 ?
+                ;
+
+            const points = formats.map(x => { return {
+                isStart: true,
+                index: x.offset,
+                format: x
+            }}).concat(formats.map(x => { return {
+                isStart: false,
+                index: x.offset + x.length,
+                format: x
+            }})).sort((a, b) => a.index - b.index);
+
+            let formatedText = '';
+            let includedText = 0;
+            function includeTo(to: number) {
+                if (to > includedText) {
+                    formatedText += text!.substring(includedText, to);
+                    includedText = to;
+                }
+            }
+            for (const point of points) {
+                includeTo(point.index);
+                switch (point.format.type) {
+                    case 'text_link':
+                        if (point.isStart) {
+                            formatedText += '[';
+                        } else {
+                            formatedText += `](${point.format.url!})`;
+                        }
+                        break;
+                    case 'bold':
+                        formatedText += '**';
+                        break;
+                    case 'italic':
+                        formatedText += '*';
+                        break;
+                    case 'strikethrough':
+                        formatedText += '~~';
+                        break;
+                }
+            }
+            includeTo(text.length);
+            return formatedText;
+        }
+        return text;
+    }
+
+    return update.message?.caption || '';
+}
+
 async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<Response> {
 	// for update content, check: https://core.telegram.org/bots/api#update
 
@@ -227,7 +291,6 @@ async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<R
     const photos = update.message?.photo;
     const document = update.message?.document;
     const sticker = update.message?.sticker;
-    const caption = update.message?.caption;
 
     const tgBot = new TgBotClient(env.TG_BOT_TOKEN);
 
@@ -276,9 +339,11 @@ async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<R
                 }
 
                 try {
+                    const markdown = convertTelegramUpdateContentToMarkdown(update);
+                    
                     const contentRows = [];
                     contentRows.push(env.MEMO_PREFIX);
-                    contentRows.push(text || caption || '');
+                    contentRows.push(markdown);
                     contentRows.push(env.MEMO_SUFFIX);
                     const content = contentRows.filter(x => x).join('\n');
 
