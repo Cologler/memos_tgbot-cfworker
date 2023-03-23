@@ -240,7 +240,7 @@ export function convertTelegramUpdateContentToMarkdown(update: Update): string {
     return update.message?.caption || '';
 }
 
-async function handleTelegramUpdate(env: Env, update: Update): Promise<Response> {
+async function handleTelegramUpdate(env: Env, update: Update): Promise<void> {
 	// for update content, check: https://core.telegram.org/bots/api#update
 
 	const chatId = update.message?.chat.id; // for reply to
@@ -336,7 +336,7 @@ async function handleTelegramUpdate(env: Env, update: Update): Promise<Response>
                             resourceIdList: [res.id]
                         })
                     } else {
-                        throw new KnownError('Not implemented message type');
+                        return;
                     }
 
                     const replyContent = `Create memo: ${memo!.id}`;
@@ -353,8 +353,6 @@ async function handleTelegramUpdate(env: Env, update: Update): Promise<Response>
             }
         }
     }
-
-	return new Response(); // telegram does not care this.
 }
 
 export default {
@@ -373,7 +371,12 @@ export default {
                 console.error(`invalid content-type: ${request.headers.get('content-type')}`);
             }
             else {
-				return await handleTelegramUpdate(env, await request.json());
+                try {
+                    await handleTelegramUpdate(env, await request.json());
+                } catch { }
+                // telegram does not care this.
+                // but without a response, telegram will send again and again.
+                return new Response();
             }
         }
 
