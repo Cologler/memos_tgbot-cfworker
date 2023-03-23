@@ -1,3 +1,4 @@
+import { Update } from "node-telegram-bot-api";
 
 export interface Env {
 	// secret
@@ -183,48 +184,7 @@ async function findMemosOpenApi(env: Env, tgUserId: number): Promise<string | nu
 class KnownError extends Error {
 }
 
-interface TelegramFileInfo {
-    file_id: string;
-    file_unique_id: string;
-    file_size: number;
-}
-
-interface TelegramUpdate {
-    message?: {
-        from: {
-            id: number,
-        },
-
-        chat: {
-            id: number,
-        },
-
-        message_id: number,
-
-        text?: string,
-        /** optional text format */
-        entities?: {
-            type: 'text_link' | 'bold' | 'italic' | 'underline' | 'strikethrough',
-            offset: number,
-            length: number,
-            url?: string
-        }[];
-
-        /** caption for photo */
-        caption?: string,
-        photo?: TelegramFileInfo[],
-        document?: TelegramFileInfo & {
-            file_name: string,
-            mime_type: string
-        },
-        sticker?: TelegramFileInfo & {
-            is_animated: boolean,
-            is_video: boolean
-        },
-    }
-}
-
-export function convertTelegramUpdateContentToMarkdown(update: TelegramUpdate): string {
+export function convertTelegramUpdateContentToMarkdown(update: Update): string {
     const text = update.message?.text;
     if (text) {
         if (update.message?.entities) {
@@ -280,12 +240,12 @@ export function convertTelegramUpdateContentToMarkdown(update: TelegramUpdate): 
     return update.message?.caption || '';
 }
 
-async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<Response> {
+async function handleTelegramUpdate(env: Env, update: Update): Promise<Response> {
 	// for update content, check: https://core.telegram.org/bots/api#update
 
 	const chatId = update.message?.chat.id; // for reply to
     const messageId = update.message?.message_id;
-    const userId = update.message?.from.id;
+    const userId = update.message?.from?.id;
 
 	const text = update.message?.text;
     const photos = update.message?.photo;
@@ -306,10 +266,10 @@ async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<R
             } else {
                 const memos = new MemosClient(openApi);
 
-                async function getTgFileAsBlob(fileId: string, fileSize: number, mimeType?: string) {
+                async function getTgFileAsBlob(fileId: string, fileSize?: number, mimeType?: string) {
                     console.debug(`Get ${fileId} (${fileSize}) from telegram`);
 
-                    if (fileSize >= 20*1024*1024) {
+                    if (!fileSize || fileSize >= 20*1024*1024) {
                         throw new KnownError('Bot API limit file max size: 20MB');
                     }
 
@@ -340,7 +300,7 @@ async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<R
 
                 try {
                     const markdown = convertTelegramUpdateContentToMarkdown(update);
-                    
+
                     const contentRows = [];
                     contentRows.push(env.MEMO_PREFIX);
                     contentRows.push(markdown);
@@ -360,7 +320,7 @@ async function handleTelegramUpdate(env: Env, update: TelegramUpdate): Promise<R
                         })
                     } else if (document) {
                         const blob = await getTgFileAsBlob(document.file_id, document.file_size, document.mime_type);
-                        const res = await memos.addBlob(blob, document.file_name);
+                        const res = await memos.addBlob(blob, document.file_name ?? `tg-doc-`);
                         memo = await memos.addMemo({
                             content: content,
                             resourceIdList: [res.id]
