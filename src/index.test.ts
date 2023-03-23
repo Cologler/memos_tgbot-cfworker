@@ -1,18 +1,12 @@
+import { Chat } from "node-telegram-bot-api";
 import { describe, expect, it } from "vitest";
 
-import { convertTelegramUpdateContentToMarkdown } from '.';
+import { convertToMarkdown } from '.';
 
 describe('Content Convert', () => {
 	it('can convert plaintext', async () => {
-		const markdown = convertTelegramUpdateContentToMarkdown({
+		const markdown = convertToMarkdown({
 			"message": {
-				"message_id": 0,
-				"from": {
-					"id": 0,
-				},
-				"chat": {
-					"id": 0,
-				},
 				"text": "sss"
 			}
 		});
@@ -20,15 +14,8 @@ describe('Content Convert', () => {
 	});
 
 	it('can convert text formated with url', async () => {
-		const markdown = convertTelegramUpdateContentToMarkdown({
+		const markdown = convertToMarkdown({
 			"message": {
-				"message_id": 0,
-				"from": {
-					"id": 0,
-				},
-				"chat": {
-					"id": 0,
-				},
 				"text": "fsafafasfdsgdsgfdshfdhdfghfghgfhgfhgfhgfhgf",
 				"entities": [
 					{
@@ -63,15 +50,8 @@ describe('Content Convert', () => {
 	});
 
 	it('can convert text formated with url', async () => {
-		const markdown = convertTelegramUpdateContentToMarkdown({
+		const markdown = convertToMarkdown({
 			"message": {
-				"message_id": 0,
-				"from": {
-					"id": 0,
-				},
-				"chat": {
-					"id": 0,
-				},
 				"text": "dsgsdgsgsd",
 				"entities": [
 					{

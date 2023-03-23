@@ -1,4 +1,4 @@
-import { FileBase, Update } from "node-telegram-bot-api";
+import { FileBase, Update, Message } from "node-telegram-bot-api";
 
 export interface Env {
 	// secret
@@ -219,7 +219,9 @@ async function findMemosOpenApi(env: Env, tgUserId: number): Promise<string | nu
 class KnownError extends Error {
 }
 
-export function convertTelegramUpdateContentToMarkdown(update: Update): string {
+export function convertToMarkdown<T extends {
+    message?: Pick<Message, 'text' | 'entities' | 'caption'>
+}>(update: T): string {
     const text = update.message?.text;
     if (text) {
         if (update.message?.entities) {
@@ -332,7 +334,7 @@ async function handleTelegramUpdate(env: Env, update: Update): Promise<void> {
             } else {
                 const memos = new MemosClient(openApi);
                 try {
-                    const markdown = convertTelegramUpdateContentToMarkdown(update);
+                    const markdown = convertToMarkdown(update);
                     const file = await getBlobFromTelegramUpdate(update, tgBot);
 
                     if (markdown || file) {
