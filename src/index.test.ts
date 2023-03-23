@@ -1,4 +1,3 @@
-import { Chat } from "node-telegram-bot-api";
 import { describe, expect, it } from "vitest";
 
 import { convertToMarkdown } from '.';
@@ -63,5 +62,37 @@ describe('Content Convert', () => {
 			}
 		});
 		expect(markdown).toStrictEqual('ds*gsd*gsgsd');
+	});
+
+	it('can convert text formated with code', async () => {
+		const markdown = convertToMarkdown({
+			"message": {
+				"text": "fsafafasfas",
+				"entities": [
+					{
+						"offset": 4,
+						"length": 4,
+						"type": "code"
+					}
+				]
+			}
+		});
+		expect(markdown).toStrictEqual('fsaf`afas`fas');
+	});
+
+	it('can convert text formated with pre', async () => {
+		const markdown = convertToMarkdown({
+			"message": {
+				"text": "json\naaa",
+				"entities": [
+					{
+						"offset": 0,
+						"length": 8,
+						"type": "pre"
+					}
+				]
+			}
+		});
+		expect(markdown).toStrictEqual('```\njson\naaa\n```');
 	});
 });

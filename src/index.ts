@@ -266,6 +266,18 @@ export function convertToMarkdown<T extends {
                     case 'strikethrough':
                         formatedText += '~~';
                         break;
+                    case 'code':
+                        formatedText += '`';
+                        break;
+                    case 'pre':
+                        if (point.isStart) {
+                            const lang = point.format.language || '';
+                            // memos does not allow language with space separator
+                            formatedText += '```' + lang + '\n';
+                        } else {
+                            formatedText += '\n```';
+                        }
+                        break;
                 }
             }
             includeTo(text.length);
