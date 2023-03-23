@@ -1,4 +1,4 @@
-import { Update } from "node-telegram-bot-api";
+import { FileBase, Update } from "node-telegram-bot-api";
 
 export interface Env {
 	// secret
@@ -84,6 +84,41 @@ class TgBotClient {
 
     getFileContentUrl(filePath: string) {
         return `https://api.telegram.org/file/bot${this.botToken}/${filePath}`;
+    }
+
+    async getFileAsBlob(tgFile: FileBase, mimeType?: string) {
+        const fileId = tgFile.file_id;
+        const fileSize = tgFile.file_size;
+
+        console.debug(`Get ${fileId} (${fileSize}) from telegram`);
+
+        if (!fileSize || fileSize >= 20*1024*1024) {
+            throw new KnownError('Bot API limit file max size: 20MB');
+        }
+
+        const file = await this.getFile(fileId);
+        console.debug(file);
+        if (!file.file_path) {
+            throw new KnownError('Bot API limit file download');
+        }
+
+        const fileUrl = this.getFileContentUrl(file.file_path);
+        console.debug(`File url is ${fileUrl}`);
+
+        const r = await fetch(fileUrl);
+        if (!r.ok) {
+            throw new KnownError(`Tg error: ${r.statusText}`);
+        }
+
+        let blob = await r.blob();
+
+        if (mimeType) {
+            blob = new Blob([blob], {
+                type: mimeType
+            })
+        }
+
+        return blob;
     }
 }
 
@@ -240,6 +275,37 @@ export function convertTelegramUpdateContentToMarkdown(update: Update): string {
     return update.message?.caption || '';
 }
 
+async function getBlobFromTelegramUpdate(update: Update, tgBot: TgBotClient): Promise<null | { name: string, blob: Blob }> {
+    const photos = update.message?.photo;
+    const document = update.message?.document;
+    const sticker = update.message?.sticker;
+
+    if (photos) {
+        const photo = photos[photos.length - 1]; // the last one is bigest
+        const blob = await tgBot.getFileAsBlob(photo, 'image/*');
+        return {
+            name: `tg-photo-${photo.file_unique_id}.jpg`,
+            blob
+        };
+    } else if (document) {
+        const blob = await tgBot.getFileAsBlob(document, document.mime_type);
+        return {
+            name: document.file_name ?? `tg-doc-${document.file_unique_id}`,
+            blob
+        }
+    } else if (sticker && !sticker.is_animated) {
+        // see: https://core.telegram.org/stickers
+        const mimeType = sticker.is_video ? 'video/*' : 'image/*';
+        const ext = sticker.is_video ? '.webm' : '.webp';
+        const blob = await tgBot.getFileAsBlob(sticker, mimeType);
+        return {
+            name: `tg-sticker-${sticker.file_unique_id}${ext}`,
+            blob
+        };
+    }
+    return null;
+}
+
 async function handleTelegramUpdate(env: Env, update: Update): Promise<void> {
 	// for update content, check: https://core.telegram.org/bots/api#update
 
@@ -265,82 +331,26 @@ async function handleTelegramUpdate(env: Env, update: Update): Promise<void> {
                 await tgBot.sendMessage(chatId, 'You are not a user.');
             } else {
                 const memos = new MemosClient(openApi);
-
-                async function getTgFileAsBlob(fileId: string, fileSize?: number, mimeType?: string) {
-                    console.debug(`Get ${fileId} (${fileSize}) from telegram`);
-
-                    if (!fileSize || fileSize >= 20*1024*1024) {
-                        throw new KnownError('Bot API limit file max size: 20MB');
-                    }
-
-                    const file = await tgBot.getFile(fileId);
-                    console.debug(file);
-                    if (!file.file_path) {
-                        throw new KnownError('Bot API limit file download');
-                    }
-
-                    const fileUrl = tgBot.getFileContentUrl(file.file_path);
-                    console.debug(`File url is ${fileUrl}`);
-
-                    const r = await fetch(fileUrl);
-                    if (!r.ok) {
-                        throw new KnownError(`Tg error: ${r.statusText}`);
-                    }
-
-                    let blob = await r.blob();
-
-                    if (mimeType) {
-                        blob = new Blob([blob], {
-                            type: mimeType
-                        })
-                    }
-
-                    return blob;
-                }
-
                 try {
                     const markdown = convertTelegramUpdateContentToMarkdown(update);
+                    const file = await getBlobFromTelegramUpdate(update, tgBot);
 
-                    const contentRows = [];
-                    contentRows.push(env.MEMO_PREFIX);
-                    contentRows.push(markdown);
-                    contentRows.push(env.MEMO_SUFFIX);
-                    const content = contentRows.filter(x => x).join('\n');
+                    if (markdown || file) {
+                        const contentRows = [];
+                        contentRows.push(env.MEMO_PREFIX);
+                        contentRows.push(markdown);
+                        contentRows.push(env.MEMO_SUFFIX);
+                        const content = contentRows.filter(x => x).join('\n');
 
-                    let memo: Awaited<ReturnType<typeof memos.addMemo>>;
-                    if (text) {
-                        memo = await memos.addMemo({ content: content });
-                    } else if (photos) {
-                        const photo = photos[photos.length - 1]; // the last one is bigest
-                        const blob = await getTgFileAsBlob(photo.file_id, photo.file_size, 'image/*');
-                        const res = await memos.addBlob(blob, `tg-photo-${photo.file_unique_id}.jpg`);
-                        memo = await memos.addMemo({
+                        const resourceIdList = file ? [(await memos.addBlob(file.blob, file.name)).id] : undefined;
+                        const memo = await memos.addMemo({
                             content: content,
-                            resourceIdList: [res.id]
-                        })
-                    } else if (document) {
-                        const blob = await getTgFileAsBlob(document.file_id, document.file_size, document.mime_type);
-                        const res = await memos.addBlob(blob, document.file_name ?? `tg-doc-`);
-                        memo = await memos.addMemo({
-                            content: content,
-                            resourceIdList: [res.id]
-                        })
-                    } else if (sticker && !sticker.is_animated) {
-                        // see: https://core.telegram.org/stickers
-                        const mimeType = sticker.is_video ? 'video/*' : 'image/*';
-                        const ext = sticker.is_video ? '.webm' : '.webp';
-                        const blob = await getTgFileAsBlob(sticker.file_id, sticker.file_size, mimeType);
-                        const res = await memos.addBlob(blob, `tg-sticker-${sticker.file_unique_id}${ext}`);
-                        memo = await memos.addMemo({
-                            content: content,
-                            resourceIdList: [res.id]
-                        })
-                    } else {
-                        return;
+                            resourceIdList
+                        });
+
+                        const replyContent = `Create memo: ${memo!.id}`;
+                        await tgBot.replyMessage(chatId, messageId, replyContent);
                     }
-
-                    const replyContent = `Create memo: ${memo!.id}`;
-                    await tgBot.replyMessage(chatId, messageId, replyContent);
 
                 } catch (error) {
                     if (error instanceof KnownError) {
