@@ -143,23 +143,23 @@ export class MemosClient {
         return url;
     }
 
+    getUrlV1(path: string) {
+        return this.getUrl(`api/v1/${path}`);
+    }
+
     async unwrapResponse<T>(resp: Response): Promise<T> {
         if (!resp.ok) {
             throw new Error(resp.statusText);
         }
 
-        const payload: {
-            data: any
-        } = await resp.json();
-
-        return payload.data;
+        return await resp.json();
     }
 
     async addMemo(memo: {
         content: string,
         resourceIdList?: number[]
     }) {
-        const url = this.getUrl('api/memo');
+        const url = this.getUrlV1('memo');
 
         const r = await postJson(url.toString(), memo);
 
@@ -173,7 +173,7 @@ export class MemosClient {
         filename: string,
         type: string
     }) {
-        const url = this.getUrl('api/resource');
+        const url = this.getUrlV1('resource');
 
         const r = await postJson(url.toString(), resource);
 
@@ -186,7 +186,7 @@ export class MemosClient {
         blob: Blob,
         filename: string
     ) {
-        const url = this.getUrl('api/resource/blob');
+        const url = this.getUrlV1('resource/blob');
 
         const formData  = new FormData();
         formData.append('file', blob, filename);
@@ -357,10 +357,13 @@ async function handleTelegramUpdate(env: Env, update: Update): Promise<void> {
                         const content = contentRows.filter(x => x).join('\n');
 
                         const resourceIdList = file ? [(await memos.addBlob(file.blob, file.name)).id] : undefined;
+                        console.debug('resourceIdList:', resourceIdList);
+
                         const memo = await memos.addMemo({
                             content: content,
                             resourceIdList
                         });
+                        console.debug('memo:', memo);
 
                         const replyContent = `Create memo: ${memo!.id}`;
                         await tgBot.replyMessage(chatId, messageId, replyContent);
